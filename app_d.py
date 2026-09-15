@@ -261,7 +261,7 @@ class_keys = list(class_names.keys())
 # =========================================================
 # MODEL
 # =========================================================
-MODEL_PATH = "efficientnet_feature_extraction.keras"
+MODEL_PATH = "driver_efficientnet_feature_extraction.keras"
 
 
 @st.cache_resource

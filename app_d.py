@@ -459,14 +459,9 @@ uploaded_video = st.file_uploader(
     label_visibility="collapsed"
 )
 
-
 # =========================================================
 # PROCESS VIDEO
-## =========================================================
-# PROCESS VIDEO
 # =========================================================
-
-FRAME_SKIP = 5
 
 
 if uploaded_video is not None:
@@ -495,9 +490,7 @@ if uploaded_video is not None:
     )
 
 
-    video_col, empty_col = st.columns(
-        [2,1]
-    )
+    video_col, empty_col = st.columns([2,1])
 
 
     with video_col:
@@ -520,21 +513,10 @@ if uploaded_video is not None:
 
 
 
-    st.write("")
-
-
-
-    button_col, empty_col = st.columns(
-        [1,2]
+    analyze = st.button(
+        "Analyze Video",
+        type="primary"
     )
-
-
-    with button_col:
-
-        analyze = st.button(
-            "Analyze Video",
-            type="primary"
-        )
 
 
 
@@ -544,16 +526,6 @@ if uploaded_video is not None:
         cap = cv2.VideoCapture(
             input_path
         )
-
-
-        if not cap.isOpened():
-
-            st.error(
-                "Could not open the uploaded video."
-            )
-
-            st.stop()
-
 
 
         fps = cap.get(
@@ -583,31 +555,19 @@ if uploaded_video is not None:
 
 
         if fps <= 0:
-
             fps = 30
 
 
 
-        # ===============================
-        # OUTPUT VIDEO
-        # ===============================
-
-
-        output_file = tempfile.NamedTemporaryFile(
+        output_path = tempfile.NamedTemporaryFile(
             delete=False,
             suffix=".mp4"
-        )
-
-
-        output_file.close()
-
-
-        output_path = output_file.name
+        ).name
 
 
 
         fourcc = cv2.VideoWriter_fourcc(
-            *"avc1"
+            *"mp4v"
         )
 
 
@@ -619,58 +579,16 @@ if uploaded_video is not None:
         )
 
 
-        if not writer.isOpened():
 
-            fourcc = cv2.VideoWriter_fourcc(
-                *"mp4v"
-            )
-
-            writer = cv2.VideoWriter(
-                output_path,
-                fourcc,
-                fps,
-                (width,height)
-            )
+        progress = st.progress(0)
 
 
+        FRAME_SKIP = 5
 
-        st.markdown(
-            '<div class="section-title">AI Analysis</div>',
-            unsafe_allow_html=True
-        )
-
-
-        progress_bar = st.progress(
-            0
-        )
-
-
-        video_col, info_col = st.columns(
-            [2,1]
-        )
-
-
-
-        with info_col:
-
-            prediction_placeholder = st.empty()
-
-            confidence_placeholder = st.empty()
-
-            frame_placeholder_info = st.empty()
-
-
-
-        # ===============================
-        # Prediction memory
-        # ===============================
-
-
-        current_class = None
 
         current_behavior = "Analyzing..."
 
-        current_confidence = 0.0
+        current_confidence = 0
 
 
 
@@ -685,7 +603,6 @@ if uploaded_video is not None:
 
 
             if not success:
-
                 break
 
 
@@ -694,10 +611,9 @@ if uploaded_video is not None:
 
 
 
-            # ===============================
-            # MODEL ONLY EVERY N FRAMES
-            # ===============================
-
+            # ===========================
+            # MODEL INFERENCE
+            # ===========================
 
             if frame_number % FRAME_SKIP == 0:
 
@@ -715,82 +631,39 @@ if uploaded_video is not None:
 
                 if predicted_confidence >= CONFIDENCE_THRESHOLD:
 
-
-                    current_class = predicted_class
-
                     current_behavior = predicted_behavior
 
                     current_confidence = predicted_confidence
 
 
 
-            # ===============================
-            # DRAW
-            # ===============================
+            # ===========================
+            # DRAW RESULT
+            # ===========================
 
 
             output_frame = draw_prediction(
-                frame.copy(),
+                frame,
                 current_behavior,
                 current_confidence
             )
 
 
 
-            # ===============================
-            # SAVE FRAME
-            # ===============================
-
-
-            if writer.isOpened():
-
-                writer.write(
-                    output_frame
-                )
+            writer.write(
+                output_frame
+            )
 
 
 
-            # ===============================
-            # PROGRESS
-            # ===============================
+            if total_frames:
 
-
-            if total_frames > 0:
-
-                progress_bar.progress(
+                progress.progress(
                     min(
                         frame_number / total_frames,
                         1.0
                     )
                 )
-
-
-
-            prediction_placeholder.markdown(
-                f"""
-                ### Current Prediction
-
-                **{current_behavior}**
-                """
-            )
-
-
-            confidence_placeholder.markdown(
-                f"""
-                ### Confidence
-
-                **{current_confidence*100:.0f}%**
-                """
-            )
-
-
-            frame_placeholder_info.markdown(
-                f"""
-                ### Frame
-
-                **{frame_number} / {total_frames}**
-                """
-            )
 
 
 
@@ -800,15 +673,8 @@ if uploaded_video is not None:
 
 
 
-        progress_bar.progress(
-            1.0
-        )
+        progress.progress(1.0)
 
-
-
-        # ===============================
-        # SHOW FINAL VIDEO
-        # ===============================
 
 
         st.markdown(
@@ -817,29 +683,14 @@ if uploaded_video is not None:
         )
 
 
-        with video_col:
+        with open(
+            output_path,
+            "rb"
+        ) as f:
 
 
-            st.markdown(
-                '<div class="video-card">',
-                unsafe_allow_html=True
-            )
-
-
-            with open(
-                output_path,
-                "rb"
-            ) as processed_video:
-
-
-                st.video(
-                    processed_video.read()
-                )
-
-
-            st.markdown(
-                '</div>',
-                unsafe_allow_html=True
+            st.video(
+                f.read()
             )
 
 
@@ -849,8 +700,6 @@ if uploaded_video is not None:
         )
 
 
-
-        # remove input only
 
         try:
 

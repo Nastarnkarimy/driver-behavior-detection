@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import tempfile
 import os
-import time
 from tensorflow import keras
 
 
@@ -468,6 +467,23 @@ uploaded_video = st.file_uploader(
 if uploaded_video is not None:
 
     # -----------------------------------------------------
+    # Save uploaded video temporarily
+    # -----------------------------------------------------
+
+    input_file = tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".mp4"
+    )
+
+    input_file.write(
+        uploaded_video.getvalue()
+    )
+
+    input_file.close()
+
+    input_path = input_file.name
+
+    # -----------------------------------------------------
     # Original Video
     # -----------------------------------------------------
 
@@ -485,7 +501,9 @@ if uploaded_video is not None:
             unsafe_allow_html=True
         )
 
-        st.video(uploaded_video)
+        st.video(
+            uploaded_video
+        )
 
         st.markdown(
             '</div>',
@@ -495,7 +513,7 @@ if uploaded_video is not None:
     st.write("")
 
     # -----------------------------------------------------
-    # Analyze Button
+    # Analyze button
     # -----------------------------------------------------
 
     button_col, empty_col = st.columns([1, 2])
@@ -507,34 +525,21 @@ if uploaded_video is not None:
             type="primary"
         )
 
+    # -----------------------------------------------------
+    # START ANALYSIS
+    # -----------------------------------------------------
+
     if analyze:
 
-        # -------------------------------------------------
-        # Save uploaded video temporarily
-        # -------------------------------------------------
-
-        input_file = tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".mp4"
+        cap = cv2.VideoCapture(
+            input_path
         )
-
-        input_file.write(
-            uploaded_video.getvalue()
-        )
-
-        input_file.close()
-
-        input_path = input_file.name
-
-        # -------------------------------------------------
-        # Open video
-        # -------------------------------------------------
-
-        cap = cv2.VideoCapture(input_path)
 
         if not cap.isOpened():
 
-            st.error("Could not open the uploaded video.")
+            st.error(
+                "Could not open the uploaded video."
+            )
 
             os.remove(input_path)
 
@@ -544,10 +549,14 @@ if uploaded_video is not None:
         # Video information
         # -------------------------------------------------
 
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        fps = cap.get(
+            cv2.CAP_PROP_FPS
+        )
 
         total_frames = int(
-            cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            cap.get(
+                cv2.CAP_PROP_FRAME_COUNT
+            )
         )
 
         if fps <= 0:
@@ -562,14 +571,14 @@ if uploaded_video is not None:
             unsafe_allow_html=True
         )
 
-        # Progress
         progress_bar = st.progress(0)
 
-        # Layout
-        video_col, info_col = st.columns([2, 1])
+        video_col, info_col = st.columns(
+            [2, 1]
+        )
 
         # -------------------------------------------------
-        # LIVE VIDEO
+        # Video display
         # -------------------------------------------------
 
         with video_col:
@@ -587,7 +596,7 @@ if uploaded_video is not None:
             )
 
         # -------------------------------------------------
-        # LIVE INFORMATION
+        # Information panel
         # -------------------------------------------------
 
         with info_col:
@@ -599,10 +608,28 @@ if uploaded_video is not None:
             frame_placeholder_info = st.empty()
 
         # -------------------------------------------------
-        # Frame Processing
+        # REAL-TIME PROCESSING
         # -------------------------------------------------
 
         frame_number = 0
+
+        # Last prediction
+        last_behavior = "Analyzing..."
+        last_confidence = 0.0
+
+        # -------------------------------------------------
+        # Control display speed
+        #
+        # We don't need to run a heavy CNN prediction
+        # on every single video frame.
+        # -------------------------------------------------
+
+        PROCESS_EVERY_N_FRAMES = 2
+
+        # Time of the next frame
+        frame_interval = 1.0 / fps
+
+        next_frame_time = time.perf_counter()
 
         while True:
 
@@ -613,38 +640,48 @@ if uploaded_video is not None:
 
             frame_number += 1
 
-            # ---------------------------------------------
-            # Predict current frame
-            # ---------------------------------------------
+            # -------------------------------------------------
+            # Prediction
+            # -------------------------------------------------
 
-            (
-                predicted_class,
-                predicted_behavior,
-                predicted_confidence
-            ) = predict_frame(frame)
+            if (
+                frame_number == 1
+                or frame_number % PROCESS_EVERY_N_FRAMES == 0
+            ):
 
-            # ---------------------------------------------
-            # Draw prediction
-            # ---------------------------------------------
+                (
+                    predicted_class,
+                    predicted_behavior,
+                    predicted_confidence
+                ) = predict_frame(
+                    frame
+                )
+
+                last_behavior = predicted_behavior
+                last_confidence = predicted_confidence
+
+            # -------------------------------------------------
+            # Draw current prediction
+            # -------------------------------------------------
 
             output_frame = draw_prediction(
                 frame.copy(),
-                predicted_behavior,
-                predicted_confidence
+                last_behavior,
+                last_confidence
             )
 
-            # ---------------------------------------------
+            # -------------------------------------------------
             # Convert BGR → RGB
-            # ---------------------------------------------
+            # -------------------------------------------------
 
             frame_rgb = cv2.cvtColor(
                 output_frame,
                 cv2.COLOR_BGR2RGB
             )
 
-            # ---------------------------------------------
-            # SHOW CURRENT FRAME IMMEDIATELY
-            # ---------------------------------------------
+            # -------------------------------------------------
+            # SHOW CURRENT FRAME
+            # -------------------------------------------------
 
             frame_placeholder.image(
                 frame_rgb,
@@ -652,33 +689,33 @@ if uploaded_video is not None:
                 use_column_width=True
             )
 
-            # ---------------------------------------------
-            # Prediction
-            # ---------------------------------------------
+            # -------------------------------------------------
+            # Current prediction
+            # -------------------------------------------------
 
             prediction_placeholder.markdown(
                 f"""
                 ### Current Prediction
 
-                **{predicted_behavior}**
+                **{last_behavior}**
                 """
             )
 
-            # ---------------------------------------------
+            # -------------------------------------------------
             # Confidence
-            # ---------------------------------------------
+            # -------------------------------------------------
 
             confidence_placeholder.markdown(
                 f"""
                 ### Confidence
 
-                **{predicted_confidence * 100:.1f}%**
+                **{last_confidence * 100:.1f}%**
                 """
             )
 
-            # ---------------------------------------------
-            # Frame
-            # ---------------------------------------------
+            # -------------------------------------------------
+            # Frame counter
+            # -------------------------------------------------
 
             frame_placeholder_info.markdown(
                 f"""
@@ -688,14 +725,43 @@ if uploaded_video is not None:
                 """
             )
 
-            # ---------------------------------------------
+            # -------------------------------------------------
             # Progress
-            # ---------------------------------------------
+            # -------------------------------------------------
 
             if total_frames > 0:
 
                 progress_bar.progress(
-                    min(frame_number / total_frames, 1.0)
+                    min(
+                        frame_number / total_frames,
+                        1.0
+                    )
+                )
+
+            # -------------------------------------------------
+            # CONTROL PLAYBACK SPEED
+            # -------------------------------------------------
+
+            next_frame_time += frame_interval
+
+            sleep_time = (
+                next_frame_time
+                - time.perf_counter()
+            )
+
+            if sleep_time > 0:
+
+                time.sleep(
+                    sleep_time
+                )
+
+            else:
+
+                # If inference is slower than the video,
+                # reset the timer instead of accumulating delay.
+
+                next_frame_time = (
+                    time.perf_counter()
                 )
 
         # -------------------------------------------------
@@ -707,17 +773,27 @@ if uploaded_video is not None:
         progress_bar.progress(1.0)
 
         # -------------------------------------------------
-        # Cleanup
+        # Completed
         # -------------------------------------------------
-
-        try:
-            os.remove(input_path)
-        except:
-            pass
 
         st.success(
             "Video analysis completed."
         )
+
+        # -------------------------------------------------
+        # Cleanup
+        # -------------------------------------------------
+
+        try:
+
+            os.remove(
+                input_path
+            )
+
+        except:
+
+            pass
+
 # =========================================================
 # FOOTER
 # =========================================================

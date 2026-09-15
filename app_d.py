@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import tempfile
 import os
+import time
 from tensorflow import keras
 
 
@@ -623,7 +624,6 @@ if uploaded_video is not None:
                 unsafe_allow_html=True
             )
 
-        # فقط همین قسمت برای رفع مشکل HTML تغییر کرده
         with info_col:
 
             prediction_placeholder = st.empty()
@@ -649,6 +649,9 @@ if uploaded_video is not None:
         # Frame processing
         # -------------------------------------------------
         frame_number = 0
+
+        # Start real-time timer
+        start_time = time.time()
 
         while True:
 
@@ -761,7 +764,7 @@ if uploaded_video is not None:
                 frame_placeholder.image(
                     frame_rgb,
                     channels="RGB",
-                    use_column_width=True
+                    use_container_width=True
                 )
 
             # -------------------------------------------------
@@ -793,6 +796,26 @@ if uploaded_video is not None:
                 f"### Frame\n**{frame_number} / {total_frames}**"
             )
 
+            # -------------------------------------------------
+            # Real-time timing
+            # -------------------------------------------------
+            expected_time = frame_number / fps
+
+            elapsed_time = (
+                time.time() -
+                start_time
+            )
+
+            delay = (
+                expected_time -
+                elapsed_time
+            )
+
+            if delay > 0:
+                time.sleep(
+                    delay
+                )
+
         # -----------------------------------------------------
         # Release resources
         # -----------------------------------------------------
@@ -807,7 +830,6 @@ if uploaded_video is not None:
         st.success(
             "Video analysis completed."
         )
-
 
         # -----------------------------------------------------
         # Cleanup

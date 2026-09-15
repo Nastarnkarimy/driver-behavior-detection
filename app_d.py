@@ -816,22 +816,24 @@ if uploaded_video is not None:
 # SHOW FINAL VIDEO
 # ===============================
 
-     st.markdown(
+     # ===============================
+# SHOW FINAL VIDEO
+# ===============================
+
+st.markdown(
     '<div class="section-title">Processed Video</div>',
     unsafe_allow_html=True
 )
 
-    with video_col:
+with video_col:
 
-        st.markdown(
+    st.markdown(
         '<div class="video-card">',
         unsafe_allow_html=True
     )
 
-
     if os.path.exists(output_path):
 
-        # تبدیل خروجی برای سازگاری Streamlit Cloud
         converted_path = output_path.replace(
             ".mp4",
             "_converted.mp4"
@@ -845,6 +847,8 @@ if uploaded_video is not None:
                 output_path,
                 "-vcodec",
                 "libx264",
+                "-pix_fmt",
+                "yuv420p",
                 "-acodec",
                 "aac",
                 converted_path
@@ -853,29 +857,20 @@ if uploaded_video is not None:
             stderr=subprocess.DEVNULL
         )
 
+        final_video = (
+            converted_path
+            if os.path.exists(converted_path)
+            else output_path
+        )
 
-        if os.path.exists(converted_path):
+        with open(
+            final_video,
+            "rb"
+        ) as processed_video:
 
-            with open(
-                converted_path,
-                "rb"
-            ) as processed_video:
-
-                st.video(
-                    processed_video.read()
-                )
-
-        else:
-
-            with open(
-                output_path,
-                "rb"
-            ) as processed_video:
-
-                st.video(
-                    processed_video.read()
-                )
-
+            st.video(
+                processed_video.read()
+            )
 
     else:
 

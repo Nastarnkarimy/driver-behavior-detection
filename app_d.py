@@ -4,7 +4,6 @@ import numpy as np
 import tempfile
 import os
 import time
-from collections import deque
 from tensorflow import keras
 
 
@@ -283,9 +282,6 @@ model = load_model()
 CONFIDENCE_THRESHOLD = 0.60
 STABLE_FRAMES_REQUIRED = 3
 
-# Number of recent frames used for temporal voting
-TEMPORAL_WINDOW = 5
-
 
 # =========================================================
 # PREDICTION FUNCTION
@@ -486,7 +482,6 @@ if uploaded_video is not None:
 
     input_path = input_file.name
 
-    # Reset file pointer
     uploaded_video.seek(0)
 
     # -----------------------------------------------------
@@ -635,7 +630,7 @@ if uploaded_video is not None:
             frame_placeholder_info = st.empty()
 
         # -------------------------------------------------
-        # Temporal prediction state
+        # Stable prediction state
         # -------------------------------------------------
         current_class = None
 
@@ -645,16 +640,16 @@ if uploaded_video is not None:
 
         current_confidence = 0.0
 
-        prediction_history = deque(
-            maxlen=TEMPORAL_WINDOW
-        )
+        candidate_class = None
+
+        candidate_count = 0
 
         # -------------------------------------------------
         # Frame processing
         # -------------------------------------------------
         frame_number = 0
 
-        # Real-time timer
+        # Time used to synchronize processing with video FPS
         start_time = time.time()
 
         while True:
@@ -678,69 +673,65 @@ if uploaded_video is not None:
             )
 
             # -------------------------------------------------
-            # Temporal voting
+            # Confidence filtering
             # -------------------------------------------------
             if predicted_confidence >= CONFIDENCE_THRESHOLD:
 
-                prediction_history.append(
-                    (
-                        predicted_class,
-                        predicted_behavior,
+                if predicted_class == current_class:
+
+                    current_confidence = (
                         predicted_confidence
                     )
-                )
+
+                    candidate_class = None
+                    candidate_count = 0
+
+                else:
+
+                    if predicted_class == candidate_class:
+
+                        candidate_count += 1
+
+                    else:
+
+                        candidate_class = (
+                            predicted_class
+                        )
+
+                        candidate_count = 1
+
+                    if candidate_count >= STABLE_FRAMES_REQUIRED:
+
+                        current_class = (
+                            predicted_class
+                        )
+
+                        current_behavior = (
+                            predicted_behavior
+                        )
+
+                        current_confidence = (
+                            predicted_confidence
+                        )
+
+                        candidate_class = None
+                        candidate_count = 0
 
             # -------------------------------------------------
-            # Select final prediction
+            # First prediction
             # -------------------------------------------------
-            if len(prediction_history) > 0:
+            if current_class is None:
 
-                class_votes = {}
-
-                for (
-                    history_class,
-                    history_behavior,
-                    history_confidence
-                ) in prediction_history:
-
-                    if history_class not in class_votes:
-
-                        class_votes[
-                            history_class
-                        ] = 0
-
-                    class_votes[
-                        history_class
-                    ] += 1
-
-                final_class = max(
-                    class_votes,
-                    key=class_votes.get
+                current_class = (
+                    predicted_class
                 )
 
-                winning_predictions = [
-                    item
-                    for item in prediction_history
-                    if item[0] == final_class
-                ]
-
-                final_confidence = (
-                    sum(
-                        item[2]
-                        for item in winning_predictions
-                    )
-                    /
-                    len(winning_predictions)
+                current_behavior = (
+                    predicted_behavior
                 )
-
-                current_class = final_class
-
-                current_behavior = class_names[
-                    final_class
-                ]
 
                 current_confidence = (
-                    final_confidence
+                    predicted_confidence
                 )
 
             # -------------------------------------------------
@@ -805,7 +796,7 @@ if uploaded_video is not None:
             )
 
             # -------------------------------------------------
-            # Real-time timing
+            # Synchronize with video time
             # -------------------------------------------------
             expected_time = (
                 frame_number /

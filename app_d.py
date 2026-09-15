@@ -279,8 +279,7 @@ model = load_model()
 # =========================================================
 # SETTINGS
 # =========================================================
-CONFIDENCE_THRESHOLD = 0.60
-STABLE_FRAMES_REQUIRED = 3
+PROCESS_EVERY_N_FRAMES = 2
 
 
 # =========================================================
@@ -343,19 +342,10 @@ def draw_prediction(
     confidence
 ):
 
-    if confidence < CONFIDENCE_THRESHOLD:
-
-        text = (
-            f"UNCERTAIN  |  "
-            f"{confidence * 100:.0f}%"
-        )
-
-    else:
-
-        text = (
-            f"{behavior.upper()}  |  "
-            f"{confidence * 100:.0f}%"
-        )
+    text = (
+        f"{behavior.upper()}  |  "
+        f"{confidence * 100:.0f}%"
+    )
 
     # Prediction panel
     cv2.rectangle(
@@ -618,15 +608,6 @@ if uploaded_video is not None:
         last_behavior = "Analyzing..."
         last_confidence = 0.0
 
-        # -------------------------------------------------
-        # Control display speed
-        #
-        # We don't need to run a heavy CNN prediction
-        # on every single video frame.
-        # -------------------------------------------------
-
-        PROCESS_EVERY_N_FRAMES = 2
-
         # Time of the next frame
         frame_interval = 1.0 / fps
 
@@ -794,6 +775,7 @@ if uploaded_video is not None:
         except:
 
             pass
+
 
 # =========================================================
 # FOOTER

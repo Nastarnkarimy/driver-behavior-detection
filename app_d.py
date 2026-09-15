@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import tempfile
 import os
+import subprocess
 from tensorflow import keras
 
 
@@ -281,7 +282,6 @@ model = load_model()
 CONFIDENCE_THRESHOLD = 0.60
 STABLE_FRAMES_REQUIRED = 3
 
-# Process one frame every 3 frames
 FRAME_SKIP = 3
 
 
@@ -359,7 +359,6 @@ def draw_prediction(
             f"{confidence * 100:.0f}%"
         )
 
-    # Prediction panel
     cv2.rectangle(
         frame,
         (15, 15),
@@ -368,7 +367,6 @@ def draw_prediction(
         -1
     )
 
-    # Accent line
     cv2.rectangle(
         frame,
         (15, 15),
@@ -377,7 +375,6 @@ def draw_prediction(
         -1
     )
 
-    # Prediction text
     cv2.putText(
         frame,
         text,
@@ -573,23 +570,23 @@ if uploaded_video is not None:
             fps = 30
 
         # -------------------------------------------------
-        # Output video
+        # Temporary OpenCV output
         # -------------------------------------------------
-        output_file = tempfile.NamedTemporaryFile(
+        temp_output = tempfile.NamedTemporaryFile(
             delete=False,
             suffix=".mp4"
         )
 
-        output_file.close()
+        temp_output.close()
 
-        output_path = output_file.name
+        temp_output_path = temp_output.name
 
         fourcc = cv2.VideoWriter_fourcc(
             *"mp4v"
         )
 
         writer = cv2.VideoWriter(
-            output_path,
+            temp_output_path,
             fourcc,
             fps,
             (width, height)
@@ -607,29 +604,19 @@ if uploaded_video is not None:
             0
         )
 
-        video_col, info_col = st.columns(
-            [2, 1]
+        info_col1, info_col2 = st.columns(
+            2
         )
 
-        with video_col:
-
-            st.markdown(
-                '<div class="video-card">',
-                unsafe_allow_html=True
-            )
-
-            frame_placeholder = st.empty()
-
-            st.markdown(
-                '</div>',
-                unsafe_allow_html=True
-            )
-
-        with info_col:
+        with info_col1:
 
             prediction_placeholder = st.empty()
+
+        with info_col2:
+
             confidence_placeholder = st.empty()
-            frame_placeholder_info = st.empty()
+
+        frame_placeholder_info = st.empty()
 
         # -------------------------------------------------
         # Stable prediction state
@@ -661,7 +648,7 @@ if uploaded_video is not None:
             frame_number += 1
 
             # -------------------------------------------------
-            # Prediction
+            # Run AI only every FRAME_SKIP frames
             # -------------------------------------------------
             if (
                 frame_number == 1
@@ -755,22 +742,6 @@ if uploaded_video is not None:
             )
 
             # -------------------------------------------------
-            # Display frame
-            # -------------------------------------------------
-            frame_rgb = cv2.cvtColor(
-                output_frame,
-                cv2.COLOR_BGR2RGB
-            )
-
-            with video_col:
-
-                frame_placeholder.image(
-                    frame_rgb,
-                    channels="RGB",
-                    width=700
-                )
-
-            # -------------------------------------------------
             # Progress
             # -------------------------------------------------
             if total_frames > 0:
@@ -800,7 +771,7 @@ if uploaded_video is not None:
             )
 
         # -----------------------------------------------------
-        # Release resources
+        # Release OpenCV resources
         # -----------------------------------------------------
         cap.release()
 
@@ -810,9 +781,71 @@ if uploaded_video is not None:
             1.0
         )
 
-        st.success(
-            "Video analysis completed."
+        # -----------------------------------------------------
+        # Convert MP4 to browser-friendly H.264
+        # -----------------------------------------------------
+        h264_output = tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".mp4"
         )
+
+        h264_output.close()
+
+        h264_output_path = h264_output.name
+
+        ffmpeg_command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            temp_output_path,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-an",
+            h264_output_path
+        ]
+
+        result = subprocess.run(
+            ffmpeg_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+
+        if result.returncode != 0:
+
+            st.error(
+                "Could not convert the processed video."
+            )
+
+        else:
+
+            st.success(
+                "Video analysis completed."
+            )
+
+            # -------------------------------------------------
+            # Show processed video
+            # -------------------------------------------------
+            with video_col:
+
+                st.markdown(
+                    '<div class="video-card">',
+                    unsafe_allow_html=True
+                )
+
+                st.video(
+                    h264_output_path
+                )
+
+                st.markdown(
+                    '</div>',
+                    unsafe_allow_html=True
+                )
 
         # -----------------------------------------------------
         # Cleanup
@@ -824,7 +857,11 @@ if uploaded_video is not None:
             )
 
             os.remove(
-                output_path
+                temp_output_path
+            )
+
+            os.remove(
+                h264_output_path
             )
 
         except:

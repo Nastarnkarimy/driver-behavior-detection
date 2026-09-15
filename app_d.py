@@ -464,41 +464,19 @@ uploaded_video = st.file_uploader(
 # =========================================================
 # PROCESS VIDEO
 # =========================================================
-# =========================================================
-# PROCESS VIDEO
-# =========================================================
+
 if uploaded_video is not None:
-
-    # -----------------------------------------------------
-    # Save uploaded video
-    # -----------------------------------------------------
-    input_file = tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".mp4"
-    )
-
-    input_file.write(
-        uploaded_video.read()
-    )
-
-    input_file.close()
-
-    input_path = input_file.name
-
-    # Reset file pointer
-    uploaded_video.seek(0)
 
     # -----------------------------------------------------
     # Original Video
     # -----------------------------------------------------
+
     st.markdown(
         '<div class="section-title">Original Video</div>',
         unsafe_allow_html=True
     )
 
-    video_col, empty_col = st.columns(
-        [2, 1]
-    )
+    video_col, empty_col = st.columns([2, 1])
 
     with video_col:
 
@@ -507,9 +485,7 @@ if uploaded_video is not None:
             unsafe_allow_html=True
         )
 
-        st.video(
-            uploaded_video
-        )
+        st.video(uploaded_video)
 
         st.markdown(
             '</div>',
@@ -519,11 +495,10 @@ if uploaded_video is not None:
     st.write("")
 
     # -----------------------------------------------------
-    # Analyze button
+    # Analyze Button
     # -----------------------------------------------------
-    button_col, empty_col = st.columns(
-        [1, 2]
-    )
+
+    button_col, empty_col = st.columns([1, 2])
 
     with button_col:
 
@@ -535,106 +510,99 @@ if uploaded_video is not None:
     if analyze:
 
         # -------------------------------------------------
+        # Save uploaded video temporarily
+        # -------------------------------------------------
+
+        input_file = tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".mp4"
+        )
+
+        input_file.write(
+            uploaded_video.getvalue()
+        )
+
+        input_file.close()
+
+        input_path = input_file.name
+
+        # -------------------------------------------------
         # Open video
         # -------------------------------------------------
-        cap = cv2.VideoCapture(
-            input_path
-        )
+
+        cap = cv2.VideoCapture(input_path)
 
         if not cap.isOpened():
 
-            st.error(
-                "Could not open the uploaded video."
-            )
+            st.error("Could not open the uploaded video.")
+
+            os.remove(input_path)
 
             st.stop()
 
         # -------------------------------------------------
         # Video information
         # -------------------------------------------------
-        fps = cap.get(
-            cv2.CAP_PROP_FPS
-        )
 
-        width = int(
-            cap.get(
-                cv2.CAP_PROP_FRAME_WIDTH
-            )
-        )
-
-        height = int(
-            cap.get(
-                cv2.CAP_PROP_FRAME_HEIGHT
-            )
-        )
+        fps = cap.get(cv2.CAP_PROP_FPS)
 
         total_frames = int(
-            cap.get(
-                cv2.CAP_PROP_FRAME_COUNT
-            )
+            cap.get(cv2.CAP_PROP_FRAME_COUNT)
         )
 
         if fps <= 0:
             fps = 30
 
         # -------------------------------------------------
-        # Output video
+        # AI Analysis
         # -------------------------------------------------
-        output_file = tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".mp4"
-        )
 
-        output_file.close()
-
-        output_path = output_file.name
-
-        fourcc = cv2.VideoWriter_fourcc(
-            *"mp4v"
-        )
-
-        writer = cv2.VideoWriter(
-            output_path,
-            fourcc,
-            fps,
-            (width, height)
-        )
-
-        if not writer.isOpened():
-
-            cap.release()
-
-            st.error(
-                "Could not create the processed video."
-            )
-
-            st.stop()
-
-        # -------------------------------------------------
-        # Analysis section
-        # -------------------------------------------------
         st.markdown(
             '<div class="section-title">AI Analysis</div>',
             unsafe_allow_html=True
         )
 
-        progress_bar = st.progress(
-            0
-        )
+        # Progress
+        progress_bar = st.progress(0)
 
-        info_col1, info_col2, info_col3 = st.columns(3)
-
-        prediction_placeholder = info_col1.empty()
-        confidence_placeholder = info_col2.empty()
-        frame_placeholder_info = info_col3.empty()
+        # Layout
+        video_col, info_col = st.columns([2, 1])
 
         # -------------------------------------------------
-        # Frame processing
+        # LIVE VIDEO
         # -------------------------------------------------
+
+        with video_col:
+
+            st.markdown(
+                '<div class="video-card">',
+                unsafe_allow_html=True
+            )
+
+            frame_placeholder = st.empty()
+
+            st.markdown(
+                '</div>',
+                unsafe_allow_html=True
+            )
+
+        # -------------------------------------------------
+        # LIVE INFORMATION
+        # -------------------------------------------------
+
+        with info_col:
+
+            prediction_placeholder = st.empty()
+
+            confidence_placeholder = st.empty()
+
+            frame_placeholder_info = st.empty()
+
+        # -------------------------------------------------
+        # Frame Processing
+        # -------------------------------------------------
+
         frame_number = 0
-
-        last_behavior = "Analyzing..."
-        last_confidence = 0.0
 
         while True:
 
@@ -645,53 +613,49 @@ if uploaded_video is not None:
 
             frame_number += 1
 
-            # -------------------------------------------------
-            # Prediction
-            # -------------------------------------------------
+            # ---------------------------------------------
+            # Predict current frame
+            # ---------------------------------------------
+
             (
                 predicted_class,
                 predicted_behavior,
                 predicted_confidence
-            ) = predict_frame(
-                frame
-            )
+            ) = predict_frame(frame)
 
-            last_behavior = predicted_behavior
-            last_confidence = predicted_confidence
-
-            # -------------------------------------------------
+            # ---------------------------------------------
             # Draw prediction
-            # -------------------------------------------------
+            # ---------------------------------------------
+
             output_frame = draw_prediction(
                 frame.copy(),
                 predicted_behavior,
                 predicted_confidence
             )
 
-            # -------------------------------------------------
-            # Write processed frame
-            # -------------------------------------------------
-            writer.write(
-                output_frame
+            # ---------------------------------------------
+            # Convert BGR → RGB
+            # ---------------------------------------------
+
+            frame_rgb = cv2.cvtColor(
+                output_frame,
+                cv2.COLOR_BGR2RGB
             )
 
-            # -------------------------------------------------
-            # Progress
-            # -------------------------------------------------
-            if total_frames > 0:
+            # ---------------------------------------------
+            # SHOW CURRENT FRAME IMMEDIATELY
+            # ---------------------------------------------
 
-                progress = (
-                    frame_number /
-                    total_frames
-                )
+            frame_placeholder.image(
+                frame_rgb,
+                channels="RGB",
+                use_column_width=True
+            )
 
-                progress_bar.progress(
-                    min(progress, 1.0)
-                )
+            # ---------------------------------------------
+            # Prediction
+            # ---------------------------------------------
 
-            # -------------------------------------------------
-            # Live analysis information
-            # -------------------------------------------------
             prediction_placeholder.markdown(
                 f"""
                 ### Current Prediction
@@ -700,13 +664,21 @@ if uploaded_video is not None:
                 """
             )
 
+            # ---------------------------------------------
+            # Confidence
+            # ---------------------------------------------
+
             confidence_placeholder.markdown(
                 f"""
                 ### Confidence
 
-                **{predicted_confidence * 100:.0f}%**
+                **{predicted_confidence * 100:.1f}%**
                 """
             )
+
+            # ---------------------------------------------
+            # Frame
+            # ---------------------------------------------
 
             frame_placeholder_info.markdown(
                 f"""
@@ -716,68 +688,36 @@ if uploaded_video is not None:
                 """
             )
 
-        # -----------------------------------------------------
-        # Release resources
-        # -----------------------------------------------------
+            # ---------------------------------------------
+            # Progress
+            # ---------------------------------------------
+
+            if total_frames > 0:
+
+                progress_bar.progress(
+                    min(frame_number / total_frames, 1.0)
+                )
+
+        # -------------------------------------------------
+        # Release
+        # -------------------------------------------------
+
         cap.release()
-        writer.release()
 
-        progress_bar.progress(
-            1.0
-        )
+        progress_bar.progress(1.0)
 
-        # -----------------------------------------------------
-        # Display processed video
-        # -----------------------------------------------------
-        st.markdown(
-            '<div class="section-title">Processed Video</div>',
-            unsafe_allow_html=True
-        )
+        # -------------------------------------------------
+        # Cleanup
+        # -------------------------------------------------
 
-        st.markdown(
-            '<div class="video-card">',
-            unsafe_allow_html=True
-        )
+        try:
+            os.remove(input_path)
+        except:
+            pass
 
-        with open(
-            output_path,
-            "rb"
-        ) as video_file:
-
-            processed_video = video_file.read()
-
-        st.video(
-            processed_video
-        )
-
-        st.markdown(
-            '</div>',
-            unsafe_allow_html=True
-        )
-
-        # -----------------------------------------------------
-        # Final information
-        # -----------------------------------------------------
         st.success(
             "Video analysis completed."
         )
-
-        # -----------------------------------------------------
-        # Cleanup
-        # -----------------------------------------------------
-        try:
-
-            os.remove(
-                input_path
-            )
-
-            os.remove(
-                output_path
-            )
-
-        except:
-
-            pass
 # =========================================================
 # FOOTER
 # =========================================================

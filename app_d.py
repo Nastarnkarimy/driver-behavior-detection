@@ -464,6 +464,9 @@ uploaded_video = st.file_uploader(
 # =========================================================
 # PROCESS VIDEO
 # =========================================================
+# =========================================================
+# PROCESS VIDEO
+# =========================================================
 if uploaded_video is not None:
 
     # -----------------------------------------------------
@@ -482,7 +485,7 @@ if uploaded_video is not None:
 
     input_path = input_file.name
 
-    # Reset file pointer so Streamlit can display the video
+    # Reset file pointer
     uploaded_video.seek(0)
 
     # -----------------------------------------------------
@@ -531,6 +534,9 @@ if uploaded_video is not None:
 
     if analyze:
 
+        # -------------------------------------------------
+        # Open video
+        # -------------------------------------------------
         cap = cv2.VideoCapture(
             input_path
         )
@@ -594,6 +600,16 @@ if uploaded_video is not None:
             (width, height)
         )
 
+        if not writer.isOpened():
+
+            cap.release()
+
+            st.error(
+                "Could not create the processed video."
+            )
+
+            st.stop()
+
         # -------------------------------------------------
         # Analysis section
         # -------------------------------------------------
@@ -606,49 +622,19 @@ if uploaded_video is not None:
             0
         )
 
-        video_col, info_col = st.columns(
-            [2, 1]
-        )
+        info_col1, info_col2, info_col3 = st.columns(3)
 
-        with video_col:
-
-            st.markdown(
-                '<div class="video-card">',
-                unsafe_allow_html=True
-            )
-
-            frame_placeholder = st.empty()
-
-            st.markdown(
-                '</div>',
-                unsafe_allow_html=True
-            )
-
-        with info_col:
-
-            prediction_placeholder = st.empty()
-            confidence_placeholder = st.empty()
-            frame_placeholder_info = st.empty()
-
-        # -------------------------------------------------
-        # Stable prediction state
-        # -------------------------------------------------
-        current_class = None
-
-        current_behavior = (
-            "Analyzing..."
-        )
-
-        current_confidence = 0.0
-
-        candidate_class = None
-
-        candidate_count = 0
+        prediction_placeholder = info_col1.empty()
+        confidence_placeholder = info_col2.empty()
+        frame_placeholder_info = info_col3.empty()
 
         # -------------------------------------------------
         # Frame processing
         # -------------------------------------------------
         frame_number = 0
+
+        last_behavior = "Analyzing..."
+        last_confidence = 0.0
 
         while True:
 
@@ -670,96 +656,23 @@ if uploaded_video is not None:
                 frame
             )
 
-            # -------------------------------------------------
-            # Confidence filtering
-            # -------------------------------------------------
-            if predicted_confidence >= CONFIDENCE_THRESHOLD:
-
-                if predicted_class == current_class:
-
-                    current_confidence = (
-                        predicted_confidence
-                    )
-
-                    candidate_class = None
-                    candidate_count = 0
-
-                else:
-
-                    if predicted_class == candidate_class:
-
-                        candidate_count += 1
-
-                    else:
-
-                        candidate_class = (
-                            predicted_class
-                        )
-
-                        candidate_count = 1
-
-                    if candidate_count >= STABLE_FRAMES_REQUIRED:
-
-                        current_class = (
-                            predicted_class
-                        )
-
-                        current_behavior = (
-                            predicted_behavior
-                        )
-
-                        current_confidence = (
-                            predicted_confidence
-                        )
-
-                        candidate_class = None
-                        candidate_count = 0
-
-            # -------------------------------------------------
-            # First prediction
-            # -------------------------------------------------
-            if current_class is None:
-
-                current_class = (
-                    predicted_class
-                )
-
-                current_behavior = (
-                    predicted_behavior
-                )
-
-                current_confidence = (
-                    predicted_confidence
-                )
+            last_behavior = predicted_behavior
+            last_confidence = predicted_confidence
 
             # -------------------------------------------------
             # Draw prediction
             # -------------------------------------------------
             output_frame = draw_prediction(
-                frame,
-                current_behavior,
-                current_confidence
+                frame.copy(),
+                predicted_behavior,
+                predicted_confidence
             )
 
             # -------------------------------------------------
-            # Write frame
+            # Write processed frame
             # -------------------------------------------------
             writer.write(
                 output_frame
-            )
-
-            # -------------------------------------------------
-            # Display frame
-            # -------------------------------------------------
-            frame_rgb = cv2.cvtColor(
-                output_frame,
-                cv2.COLOR_BGR2RGB
-            )
-
-            frame_placeholder.image(
-                frame_rgb,
-                channels="RGB",
-                use_column_width=True
             )
 
             # -------------------------------------------------
@@ -777,34 +690,74 @@ if uploaded_video is not None:
                 )
 
             # -------------------------------------------------
-            # Information panel
+            # Live analysis information
             # -------------------------------------------------
             prediction_placeholder.markdown(
-                f"### Current Prediction\n**{current_behavior}**"
+                f"""
+                ### Current Prediction
+
+                **{predicted_behavior}**
+                """
             )
 
             confidence_placeholder.markdown(
-                f"### Confidence\n**{current_confidence * 100:.0f}%**"
+                f"""
+                ### Confidence
+
+                **{predicted_confidence * 100:.0f}%**
+                """
             )
 
             frame_placeholder_info.markdown(
-                f"### Frame\n**{frame_number} / {total_frames}**"
-            )
+                f"""
+                ### Frame
 
-            # Allow Streamlit to render the updated frame
-            time.sleep(0.03)
+                **{frame_number} / {total_frames}**
+                """
+            )
 
         # -----------------------------------------------------
         # Release resources
         # -----------------------------------------------------
         cap.release()
-
         writer.release()
 
         progress_bar.progress(
             1.0
         )
 
+        # -----------------------------------------------------
+        # Display processed video
+        # -----------------------------------------------------
+        st.markdown(
+            '<div class="section-title">Processed Video</div>',
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            '<div class="video-card">',
+            unsafe_allow_html=True
+        )
+
+        with open(
+            output_path,
+            "rb"
+        ) as video_file:
+
+            processed_video = video_file.read()
+
+        st.video(
+            processed_video
+        )
+
+        st.markdown(
+            '</div>',
+            unsafe_allow_html=True
+        )
+
+        # -----------------------------------------------------
+        # Final information
+        # -----------------------------------------------------
         st.success(
             "Video analysis completed."
         )
@@ -825,8 +778,6 @@ if uploaded_video is not None:
         except:
 
             pass
-
-
 # =========================================================
 # FOOTER
 # =========================================================

@@ -762,10 +762,10 @@ if uploaded_video is not None:
             with video_col:
 
                 frame_placeholder.image(
-                    frame_rgb,
-                    channels="RGB",
-                    use_container_width=True
-                )
+    frame_rgb,
+    channels="RGB",
+    width=700
+)
 
             # -------------------------------------------------
             # Progress

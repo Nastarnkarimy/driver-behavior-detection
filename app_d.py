@@ -910,4 +910,4 @@ st.markdown("""
     Driver Behavior AI · EfficientNetB0 Transfer Learning · 
     95.5% Validation Accuracy 
 </div> 
-""", unsafe_allow_html=True) اینه
+""", unsafe_allow_html=True) 

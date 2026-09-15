@@ -823,46 +823,22 @@ with video_col:
         unsafe_allow_html=True
     )
 
-    # تبدیل خروجی OpenCV به mp4 قابل پخش Streamlit
-    converted_path = output_path.replace(
-        ".mp4",
-        "_converted.mp4"
-    )
 
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-y",
-            "-i",
-            output_path,
-            "-vcodec",
-            "libx264",
-            "-acodec",
-            "aac",
-            converted_path
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
-
-
-    if os.path.exists(converted_path):
+    if os.path.exists(output_path):
 
         with open(
-            converted_path,
+            output_path,
             "rb"
-        ) as video_file:
-
-            video_bytes = video_file.read()
+        ) as processed_video:
 
             st.video(
-                video_bytes
+                processed_video.read()
             )
 
     else:
 
         st.error(
-            "Video conversion failed."
+            "Processed video file was not created."
         )
 
 
@@ -875,35 +851,6 @@ with video_col:
 st.success(
     "Video analysis completed."
 )
-
-
-# پاک کردن فایل های موقت
-try:
-
-    os.remove(input_path)
-
-except:
-
-    pass
-
-
-try:
-
-    os.remove(output_path)
-
-except:
-
-    pass
-
-
-try:
-
-    os.remove(converted_path)
-
-except:
-
-    pass
-# FOOTER 
 # ========================================================= 
 st.markdown(""" 
 <div class="footer"> 

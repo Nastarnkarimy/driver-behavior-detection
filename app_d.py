@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import tempfile
 import os
+import time
 from tensorflow import keras
 
 
@@ -623,7 +624,6 @@ if uploaded_video is not None:
                 unsafe_allow_html=True
             )
 
-        # فقط همین قسمت برای رفع مشکل HTML تغییر کرده
         with info_col:
 
             prediction_placeholder = st.empty()
@@ -756,13 +756,11 @@ if uploaded_video is not None:
                 cv2.COLOR_BGR2RGB
             )
 
-            with video_col:
-
-                frame_placeholder.image(
-                    frame_rgb,
-                    channels="RGB",
-                    use_column_width=True
-)
+            frame_placeholder.image(
+                frame_rgb,
+                channels="RGB",
+                use_column_width=True
+            )
 
             # -------------------------------------------------
             # Progress
@@ -793,6 +791,9 @@ if uploaded_video is not None:
                 f"### Frame\n**{frame_number} / {total_frames}**"
             )
 
+            # Allow Streamlit to render the updated frame
+            time.sleep(0.03)
+
         # -----------------------------------------------------
         # Release resources
         # -----------------------------------------------------
@@ -807,7 +808,6 @@ if uploaded_video is not None:
         st.success(
             "Video analysis completed."
         )
-
 
         # -----------------------------------------------------
         # Cleanup

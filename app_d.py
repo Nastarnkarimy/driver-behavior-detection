@@ -1,28 +1,28 @@
-import streamlit as st
-import cv2
-import numpy as np
-import tempfile
-import os
-import time
-from tensorflow import keras
-
-
-# =========================================================
-# PAGE CONFIG
-# =========================================================
-st.set_page_config(
-    page_title="Driver Behavior AI",
-    page_icon="🚗",
-    layout="wide"
-)
-
-
-# =========================================================
-# CUSTOM CSS
-# =========================================================
-st.markdown("""
-<style>
-    /* ================================
+import streamlit as st 
+import cv2 
+import numpy as np 
+import tempfile 
+import os 
+import time 
+from tensorflow import keras 
+ 
+ 
+# ========================================================= 
+# PAGE CONFIG 
+# ========================================================= 
+st.set_page_config( 
+    page_title="Driver Behavior AI", 
+    page_icon="🚗", 
+    layout="wide" 
+) 
+ 
+ 
+# ========================================================= 
+# CUSTOM CSS 
+# ========================================================= 
+st.markdown(""" 
+<style> 
+    /* ================================ 
        GLOBAL
     ================================= */
     .stApp {
@@ -280,6 +280,8 @@ model = load_model()
 # SETTINGS
 # =========================================================
 PROCESS_EVERY_N_FRAMES = 2
+CONFIDENCE_THRESHOLD = 0.60
+STABLE_FRAMES_REQUIRED = 3
 
 
 # =========================================================
@@ -342,10 +344,13 @@ def draw_prediction(
     confidence
 ):
 
-    text = (
-        f"{behavior.upper()}  |  "
-        f"{confidence * 100:.0f}%"
-    )
+    if confidence < CONFIDENCE_THRESHOLD:
+        text = "UNCERTAIN"
+    else:
+        text = (
+            f"{behavior.upper()}  |  "
+            f"{confidence * 100:.0f}%"
+        )
 
     # Prediction panel
     cv2.rectangle(
@@ -454,12 +459,7 @@ uploaded_video = st.file_uploader(
 # =========================================================
 # PROCESS VIDEO
 # =========================================================
-
 if uploaded_video is not None:
-
-    # -----------------------------------------------------
-    # Save uploaded video temporarily
-    # -----------------------------------------------------
 
     input_file = tempfile.NamedTemporaryFile(
         delete=False,
@@ -474,10 +474,10 @@ if uploaded_video is not None:
 
     input_path = input_file.name
 
-    # -----------------------------------------------------
-    # Original Video
-    # -----------------------------------------------------
 
+    # =====================================================
+    # ORIGINAL VIDEO
+    # =====================================================
     st.markdown(
         '<div class="section-title">Original Video</div>',
         unsafe_allow_html=True
@@ -503,10 +503,10 @@ if uploaded_video is not None:
 
     st.write("")
 
-    # -----------------------------------------------------
-    # Analyze button
-    # -----------------------------------------------------
 
+    # =====================================================
+    # ANALYZE BUTTON
+    # =====================================================
     button_col, empty_col = st.columns([1, 2])
 
     with button_col:
@@ -516,10 +516,10 @@ if uploaded_video is not None:
             type="primary"
         )
 
-    # -----------------------------------------------------
-    # START ANALYSIS
-    # -----------------------------------------------------
 
+    # =====================================================
+    # START ANALYSIS
+    # =====================================================
     if analyze:
 
         cap = cv2.VideoCapture(
@@ -532,14 +532,16 @@ if uploaded_video is not None:
                 "Could not open the uploaded video."
             )
 
-            os.remove(input_path)
+            os.remove(
+                input_path
+            )
 
             st.stop()
 
-        # -------------------------------------------------
-        # Video information
-        # -------------------------------------------------
 
+        # =================================================
+        # VIDEO INFORMATION
+        # =================================================
         fps = cap.get(
             cv2.CAP_PROP_FPS
         )
@@ -553,10 +555,10 @@ if uploaded_video is not None:
         if fps <= 0:
             fps = 30
 
-        # -------------------------------------------------
-        # AI Analysis
-        # -------------------------------------------------
 
+        # =================================================
+        # AI ANALYSIS
+        # =================================================
         st.markdown(
             '<div class="section-title">AI Analysis</div>',
             unsafe_allow_html=True
@@ -568,10 +570,10 @@ if uploaded_video is not None:
             [2, 1]
         )
 
-        # -------------------------------------------------
-        # Video display
-        # -------------------------------------------------
 
+        # =================================================
+        # VIDEO DISPLAY
+        # =================================================
         with video_col:
 
             st.markdown(
@@ -586,10 +588,10 @@ if uploaded_video is not None:
                 unsafe_allow_html=True
             )
 
-        # -------------------------------------------------
-        # Information panel
-        # -------------------------------------------------
 
+        # =================================================
+        # INFORMATION PANEL
+        # =================================================
         with info_col:
 
             prediction_placeholder = st.empty()
@@ -598,20 +600,22 @@ if uploaded_video is not None:
 
             frame_placeholder_info = st.empty()
 
-        # -------------------------------------------------
-        # REAL-TIME PROCESSING
-        # -------------------------------------------------
 
+        # =================================================
+        # REAL-TIME PROCESSING
+        # =================================================
         frame_number = 0
 
-        # Last prediction
         last_behavior = "Analyzing..."
         last_confidence = 0.0
 
-        # Time of the next frame
+        stable_behavior = None
+        stable_count = 0
+
         frame_interval = 1.0 / fps
 
         next_frame_time = time.perf_counter()
+
 
         while True:
 
@@ -622,10 +626,10 @@ if uploaded_video is not None:
 
             frame_number += 1
 
-            # -------------------------------------------------
-            # Prediction
-            # -------------------------------------------------
 
+            # =================================================
+            # PREDICTION
+            # =================================================
             if (
                 frame_number == 1
                 or frame_number % PROCESS_EVERY_N_FRAMES == 0
@@ -639,42 +643,76 @@ if uploaded_video is not None:
                     frame
                 )
 
-                last_behavior = predicted_behavior
-                last_confidence = predicted_confidence
 
-            # -------------------------------------------------
-            # Draw current prediction
-            # -------------------------------------------------
+                # =============================================
+                # STABLE PREDICTION
+                # =============================================
+                if (
+                    predicted_confidence >= CONFIDENCE_THRESHOLD
+                    and predicted_class == stable_behavior
+                ):
 
+                    stable_count += 1
+
+                elif (
+                    predicted_confidence >= CONFIDENCE_THRESHOLD
+                ):
+
+                    stable_behavior = predicted_class
+                    stable_count = 1
+
+                else:
+
+                    stable_behavior = None
+                    stable_count = 0
+
+
+                # =============================================
+                # UPDATE ONLY AFTER STABLE PREDICTION
+                # =============================================
+                if stable_count >= STABLE_FRAMES_REQUIRED:
+
+                    last_behavior = predicted_behavior
+                    last_confidence = predicted_confidence
+
+                elif last_behavior == "Analyzing...":
+
+                    last_behavior = predicted_behavior
+                    last_confidence = predicted_confidence
+
+
+            # =================================================
+            # DRAW CURRENT PREDICTION
+            # =================================================
             output_frame = draw_prediction(
                 frame.copy(),
                 last_behavior,
                 last_confidence
             )
 
-            # -------------------------------------------------
-            # Convert BGR → RGB
-            # -------------------------------------------------
 
+            # =================================================
+            # BGR → RGB
+            # =================================================
             frame_rgb = cv2.cvtColor(
                 output_frame,
                 cv2.COLOR_BGR2RGB
             )
 
-            # -------------------------------------------------
-            # SHOW CURRENT FRAME
-            # -------------------------------------------------
 
+            # =================================================
+            # SHOW CURRENT FRAME
+            # =================================================
             frame_placeholder.image(
                 frame_rgb,
                 channels="RGB",
                 use_column_width=True
             )
 
-            # -------------------------------------------------
-            # Current prediction
-            # -------------------------------------------------
 
+            # =================================================
+            # CURRENT PREDICTION
+            # =================================================
             prediction_placeholder.markdown(
                 f"""
                 ### Current Prediction
@@ -683,10 +721,10 @@ if uploaded_video is not None:
                 """
             )
 
-            # -------------------------------------------------
-            # Confidence
-            # -------------------------------------------------
 
+            # =================================================
+            # CONFIDENCE
+            # =================================================
             confidence_placeholder.markdown(
                 f"""
                 ### Confidence
@@ -695,10 +733,10 @@ if uploaded_video is not None:
                 """
             )
 
-            # -------------------------------------------------
-            # Frame counter
-            # -------------------------------------------------
 
+            # =================================================
+            # FRAME COUNTER
+            # =================================================
             frame_placeholder_info.markdown(
                 f"""
                 ### Frame
@@ -707,10 +745,10 @@ if uploaded_video is not None:
                 """
             )
 
-            # -------------------------------------------------
-            # Progress
-            # -------------------------------------------------
 
+            # =================================================
+            # PROGRESS
+            # =================================================
             if total_frames > 0:
 
                 progress_bar.progress(
@@ -720,10 +758,10 @@ if uploaded_video is not None:
                     )
                 )
 
-            # -------------------------------------------------
-            # CONTROL PLAYBACK SPEED
-            # -------------------------------------------------
 
+            # =================================================
+            # CONTROL PLAYBACK SPEED
+            # =================================================
             next_frame_time += frame_interval
 
             sleep_time = (
@@ -739,33 +777,30 @@ if uploaded_video is not None:
 
             else:
 
-                # If inference is slower than the video,
-                # reset the timer instead of accumulating delay.
-
                 next_frame_time = (
                     time.perf_counter()
                 )
 
-        # -------------------------------------------------
-        # Release
-        # -------------------------------------------------
 
+        # =================================================
+        # RELEASE
+        # =================================================
         cap.release()
 
         progress_bar.progress(1.0)
 
-        # -------------------------------------------------
-        # Completed
-        # -------------------------------------------------
 
+        # =================================================
+        # COMPLETED
+        # =================================================
         st.success(
             "Video analysis completed."
         )
 
-        # -------------------------------------------------
-        # Cleanup
-        # -------------------------------------------------
 
+        # =================================================
+        # CLEANUP
+        # =================================================
         try:
 
             os.remove(

@@ -1,3 +1,7 @@
+
+
+
+
 import streamlit as st 
 import cv2 
 import numpy as np 
@@ -800,89 +804,86 @@ if uploaded_video is not None:
  
  
  
-                progress_bar.progress(
-            1.0
-        )
+        progress_bar.progress( 
+            1.0 
+        ) 
+ 
+ 
+ 
+     
 
-
-        # ===============================
-        # SHOW FINAL VIDEO
-        # ===============================
+     # ===============================
+# SHOW FINAL VIDEO
+# ===============================
 
         st.markdown(
-            '<div class="section-title">Processed Video</div>',
-            unsafe_allow_html=True
-        )
-
+    '<div class="section-title">Processed Video</div>',
+    unsafe_allow_html=True
+)
 
         with video_col:
 
             st.markdown(
-                '<div class="video-card">',
-                unsafe_allow_html=True
-            )
-
+        '<div class="video-card">',
+        unsafe_allow_html=True
+    )
 
             if os.path.exists(output_path):
 
                 converted_path = output_path.replace(
-                    ".mp4",
-                    "_converted.mp4"
-                )
-
+            ".mp4",
+            "_converted.mp4"
+        )
 
                 subprocess.run(
-                    [
-                        "ffmpeg",
-                        "-y",
-                        "-i",
-                        output_path,
-                        "-vcodec",
-                        "libx264",
-                        "-pix_fmt",
-                        "yuv420p",
-                        "-acodec",
-                        "aac",
-                        converted_path
-                    ],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                output_path,
+                "-vcodec",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-acodec",
+                "aac",
+                converted_path
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
 
                 final_video = (
-                    converted_path
-                    if os.path.exists(converted_path)
-                    else output_path
-                )
+            converted_path
+            if os.path.exists(converted_path)
+            else output_path
+        )
 
+        with open(
+            final_video,
+            "rb"
+        ) as processed_video:
 
-                with open(
-                    final_video,
-                    "rb"
-                ) as processed_video:
-
-                    st.video(
-                        processed_video.read()
-                    )
-
-
-            else:
-
-                st.error(
-                    "Processed video file was not created."
-                )
-
-
-            st.markdown(
-                '</div>',
-                unsafe_allow_html=True
+            st.video(
+                processed_video.read()
             )
 
+    else:
 
-        st.success(
-            "Video analysis completed."
+        st.error(
+            "Processed video file was not created."
         )
+
+
+    st.markdown(
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+
+st.success(
+    "Video analysis completed."
+)
 # ========================================================= 
 st.markdown(""" 
 <div class="footer"> 

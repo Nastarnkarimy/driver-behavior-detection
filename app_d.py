@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import tempfile
 import os
+import time
 from tensorflow import keras
 
 
@@ -281,9 +282,6 @@ model = load_model()
 CONFIDENCE_THRESHOLD = 0.60
 STABLE_FRAMES_REQUIRED = 3
 
-# Process one frame every 3 frames
-FRAME_SKIP = 3
-
 
 # =========================================================
 # PREDICTION FUNCTION
@@ -477,13 +475,14 @@ if uploaded_video is not None:
     )
 
     input_file.write(
-        uploaded_video.getvalue()
+        uploaded_video.read()
     )
 
     input_file.close()
 
     input_path = input_file.name
 
+    # Reset file pointer so Streamlit can display the video
     uploaded_video.seek(0)
 
     # -----------------------------------------------------
@@ -651,6 +650,9 @@ if uploaded_video is not None:
         # -------------------------------------------------
         frame_number = 0
 
+        # Start real-time timer
+        start_time = time.time()
+
         while True:
 
             success, frame = cap.read()
@@ -663,25 +665,51 @@ if uploaded_video is not None:
             # -------------------------------------------------
             # Prediction
             # -------------------------------------------------
-            if (
-                frame_number == 1
-                or frame_number % FRAME_SKIP == 0
-            ):
+            (
+                predicted_class,
+                predicted_behavior,
+                predicted_confidence
+            ) = predict_frame(
+                frame
+            )
 
-                (
-                    predicted_class,
-                    predicted_behavior,
-                    predicted_confidence
-                ) = predict_frame(
-                    frame
-                )
+            # -------------------------------------------------
+            # Confidence filtering
+            # -------------------------------------------------
+            if predicted_confidence >= CONFIDENCE_THRESHOLD:
 
-                # -------------------------------------------------
-                # Confidence filtering
-                # -------------------------------------------------
-                if predicted_confidence >= CONFIDENCE_THRESHOLD:
+                if predicted_class == current_class:
 
-                    if predicted_class == current_class:
+                    current_confidence = (
+                        predicted_confidence
+                    )
+
+                    candidate_class = None
+                    candidate_count = 0
+
+                else:
+
+                    if predicted_class == candidate_class:
+
+                        candidate_count += 1
+
+                    else:
+
+                        candidate_class = (
+                            predicted_class
+                        )
+
+                        candidate_count = 1
+
+                    if candidate_count >= STABLE_FRAMES_REQUIRED:
+
+                        current_class = (
+                            predicted_class
+                        )
+
+                        current_behavior = (
+                            predicted_behavior
+                        )
 
                         current_confidence = (
                             predicted_confidence
@@ -690,53 +718,22 @@ if uploaded_video is not None:
                         candidate_class = None
                         candidate_count = 0
 
-                    else:
+            # -------------------------------------------------
+            # First prediction
+            # -------------------------------------------------
+            if current_class is None:
 
-                        if predicted_class == candidate_class:
+                current_class = (
+                    predicted_class
+                )
 
-                            candidate_count += 1
+                current_behavior = (
+                    predicted_behavior
+                )
 
-                        else:
-
-                            candidate_class = (
-                                predicted_class
-                            )
-
-                            candidate_count = 1
-
-                        if candidate_count >= STABLE_FRAMES_REQUIRED:
-
-                            current_class = (
-                                predicted_class
-                            )
-
-                            current_behavior = (
-                                predicted_behavior
-                            )
-
-                            current_confidence = (
-                                predicted_confidence
-                            )
-
-                            candidate_class = None
-                            candidate_count = 0
-
-                # -------------------------------------------------
-                # First prediction
-                # -------------------------------------------------
-                if current_class is None:
-
-                    current_class = (
-                        predicted_class
-                    )
-
-                    current_behavior = (
-                        predicted_behavior
-                    )
-
-                    current_confidence = (
-                        predicted_confidence
-                    )
+                current_confidence = (
+                    predicted_confidence
+                )
 
             # -------------------------------------------------
             # Draw prediction
@@ -765,10 +762,10 @@ if uploaded_video is not None:
             with video_col:
 
                 frame_placeholder.image(
-                    frame_rgb,
-                    channels="RGB",
-                    width=700
-                )
+    frame_rgb,
+    channels="RGB",
+    width=700
+)
 
             # -------------------------------------------------
             # Progress
@@ -798,6 +795,26 @@ if uploaded_video is not None:
             frame_placeholder_info.markdown(
                 f"### Frame\n**{frame_number} / {total_frames}**"
             )
+
+            # -------------------------------------------------
+            # Real-time timing
+            # -------------------------------------------------
+            expected_time = frame_number / fps
+
+            elapsed_time = (
+                time.time() -
+                start_time
+            )
+
+            delay = (
+                expected_time -
+                elapsed_time
+            )
+
+            if delay > 0:
+                time.sleep(
+                    delay
+                )
 
         # -----------------------------------------------------
         # Release resources
